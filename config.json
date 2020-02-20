@@ -1,0 +1,7 @@
+{
+    "keyVaultBaseUrl": "https://foo.vault.azure.net",
+    "clientId": "",
+    "tenantId": "",
+    "subscriptionId": "",
+    "clientSecret": ""
+}
