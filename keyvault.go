@@ -98,7 +98,7 @@ func createAddressBookEntry(keyName string, publicKeyX []byte, publicKeyY []byte
 }
 
 func getKeys(conf *azureKeyVaultConfig, azureClient *keyvault.BaseClient) {
-	log.Infof("Get keys from %s", conf.KeyVaultBaseURL)
+	log.Infof("Get keys of type:(EC), curve(P-256K) from %s", conf.KeyVaultBaseURL)
 	keys, err := azureClient.GetKeys(ctx, conf.KeyVaultBaseURL, nil)
 	if err != nil {
 		log.Errorf("Unable to fetch keys from keyVault (%s):(%s)", conf.KeyVaultBaseURL, err)
@@ -115,7 +115,7 @@ func getKeys(conf *azureKeyVaultConfig, azureClient *keyvault.BaseClient) {
 		}
 		key := *bundle.Key
 		if !(key.Kty == "EC" && key.Crv == "P-256K") {
-			log.Warnf("Skipping key with index:(%d), name:(%s), type: (%+v)", i, keyName, key)
+			// log.Warnf("Skipping key with index:(%d), name:(%s), type: (%+v)", i, keyName, key)
 			continue
 		}
 
@@ -176,19 +176,21 @@ func verifySignature(results []keyvault.KeyOperationResult) {
 		rBytes := hsmSignatureBytes[rStart:rEnd]
 		sBytes := hsmSignatureBytes[sStart:sEnd]
 		entry := addressBook[i]
+		success := false
 		for j := 0; j < 4; j++ {
-			v := j + 27
+			v := j
 			sig := make([]byte, 65)
 			copy(sig[rStart:rEnd], rBytes)
 			copy(sig[sStart:sEnd], sBytes)
 			sig[vStart] = byte(v)
-			recovered, err := crypto.Ecrecover(testHashedPayload.Bytes(), sig)
-			if err != nil {
-				log.Warnf("Unable to recover signature from v:(%d):(%s)", v, err)
-			}
+			recovered, _ := crypto.Ecrecover(testHashedPayload.Bytes(), sig)
 			if bytes.Compare(recovered, entry.publicKey) == 0 {
 				log.Infof("Success!! Recovered publicKey address from signature (%s)", entry.commonAddress)
+				success = true
 			}
+		}
+		if !success {
+			log.Warnf("Unable to recover signature from v for signature from key:(%s)", *result.Kid)
 		}
 	}
 }
@@ -245,7 +247,7 @@ func signWithURL(conf *azureKeyVaultConfig, authorizer *autorest.Authorizer, azu
 }
 
 func main() {
-	log.Info("Hello azure")
+	log.Info("Sign a payload with key in Azure KeyVault and verify signature")
 	var kvConfig *azureKeyVaultConfig
 	var err error
 
@@ -264,7 +266,6 @@ func main() {
 	// createKeys(kvConfig, baseClient)
 
 	getKeys(kvConfig, baseClient)
-	log.Infof("Retrieved keys from keyvault")
 	for i := 0; i < len(addressBook); i++ {
 		entry := addressBook[i]
 		log.Infof("Keyname:(%s), Address:(%s)", entry.keyName, entry.commonAddress)
